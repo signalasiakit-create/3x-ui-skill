@@ -60,6 +60,7 @@ First, determine **execution mode**:
 4. **Server nickname** -- for SSH config (e.g., `myserver`, `vpn1`)
 5. **Has domain?** -- if unsure, recommend "no" (Reality path, simpler)
 6. **Domain name** (if yes to #5) -- must already point to server IP
+7. **SSH port** (TLS path only) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
 
 ### Local Mode -- ASK the user for:
 
@@ -67,6 +68,7 @@ First, determine **execution mode**:
 2. **Server nickname** -- for future SSH access from user's computer (e.g., `myserver`, `vpn1`)
 3. **Has domain?** -- if unsure, recommend "no" (Reality path, simpler)
 4. **Domain name** (if yes to #3) -- must already point to server IP
+5. **SSH port** (TLS path only) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
 
 In Local mode, get server IP automatically:
 ```bash
@@ -204,11 +206,12 @@ sudo apt install -y ufw
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow ssh
-sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw --force enable
 sudo ufw status
 ```
+
+**Note:** Port 80 is NOT opened here. For TLS path it is opened temporarily during certificate issuance (vless-tls.md Step 2) and for renewal (via `/root/cert-renew.sh`), then closed again. For Reality path port 80 is never needed.
 
 ## Step 9: fail2ban — DEFERRED
 
@@ -306,7 +309,13 @@ Extract and save these values. Show them to the user:
   Password: {panel_password}
   Port:     {panel_port}
   Path:     {web_base_path}
-  URL:      https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
+
+  Reality path (no domain):
+    URL:  https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
+    Команда туннеля: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
+
+  TLS path (with domain) — задаётся позже в vless-tls.md Step 3:
+    URL:  https://{domain}:{panel_port}/{web_base_path} (прямой доступ)
 ```
 
 Verify 3x-ui is running:
@@ -317,7 +326,8 @@ ssh {nickname} "sudo x-ui status"
 
 If not running: `ssh {nickname} "sudo x-ui start"`
 
-**Panel port is NOT opened in firewall intentionally** -- access panel only via SSH tunnel for security.
+**Reality path:** Panel port is NOT opened in firewall — access only via SSH tunnel for security.
+**TLS path:** Panel port is opened in UFW in vless-tls.md Step 3 — direct access via domain with valid SSL certificate.
 
 ## Step 14b: Enable BBR
 
@@ -349,15 +359,56 @@ ping -c 2 -W 2 {SERVER_IP}
 
 Expected: no response (timeout).
 
-## Step 16: Branch -- Reality or TLS
+## Step 16: Branch -- Choose Protocol
 
-### Path A: VLESS Reality (NO domain needed) -- RECOMMENDED
+Ask the user which setup they want:
+
+| | Path A | Path B | Path C |
+|--|--------|--------|--------|
+| **Transport** | TCP | TCP | XHTTP (SplitHTTP) |
+| **Security** | Reality | TLS | Reality |
+| **Domain needed** | No | Yes | No |
+| **Difficulty** | Easy | Medium | Easy |
+| **Fallback site** | No | Yes (Nginx stub) | No |
+| **DPI resistance** | High | High | Very high |
+| **Flow** | xtls-rprx-vision | xtls-rprx-vision | None (not used) |
+
+**Recommend Path A for beginners.** Path C (XHTTP) is slightly harder to block but requires an up-to-date client (Hiddify, Nekobox, v2rayN — latest versions).
+
+### ⚠️ CRITICAL: Own domain CANNOT be used as Reality SNI/dest
+
+**If user has a domain — they MUST use Path B (TLS), not Reality.**
+
+Reality works by physically connecting to the dest server and borrowing its real TLS handshake. Xray literally opens a TCP connection to `dest:443` on every client connect. If the domain points to the same server, Xray connects to itself — creating a loop that breaks the connection entirely.
+
+```
+Path A/C — Reality dest MUST be an external server (different IP, from scanner):
+  Client → Xray → connects to neighbor-site.com:443 (real external server) → borrows TLS ✅
+
+Path A/C — Using own domain as dest is IMPOSSIBLE:
+  Client → Xray → connects to yourdomain.com:443 → same IP → loop → broken ❌
+```
+
+**If user says "I have a domain, can I use it for Reality SNI?"** — answer:
+> No. Reality requires an external server at a different IP. Your domain points to this server, which creates a loop. Use Path B (TLS) instead — it uses your domain properly with a real certificate and gives the same level of protection.
+
+**The only exception** would be if the domain is behind Cloudflare proxy (orange cloud enabled) — then `yourdomain.com` resolves to Cloudflare's IP, not your server. In that case it technically works as a dest, but this is an advanced edge case and not recommended.
+
+### Path A: VLESS TCP + Reality (NO domain) -- RECOMMENDED
 
 Go to Step 17A.
 
-### Path B: VLESS TLS (domain required)
+### Path B: VLESS TCP + TLS (domain required)
 
 Go to `references/vless-tls.md`.
+
+> **If user has a domain and asks about Reality** — redirect to Path B. Explain: TLS with your own valid certificate is just as effective against DPI as Reality. Reality is for when you have no domain.
+
+### Path C: VLESS XHTTP + Reality (NO domain, max stealth)
+
+Run the Reality scanner first (Step 17A — scanner only, stop after choosing SNI), then go to `references/vless-xhttp-reality.md`.
+
+> Same rule applies: own domain cannot be SNI/dest. Scanner result required.
 
 ## Step 17A: Find Best SNI with Reality Scanner
 
@@ -798,29 +849,45 @@ Generate this file using the **Write tool**, substituting all `{variables}` with
 | Пользователь | `{username}` |
 | Пароль sudo | `{sudo_password}` |
 | SSH-ключ | `~/.ssh/{nickname}_key` |
+| SSH-порт | `{ssh_port}` (если TLS путь, иначе 22) |
 | Быстрое подключение | `ssh {nickname}` |
 
 ## 2. Панель 3x-ui
 
 | Параметр | Значение |
 |----------|----------|
-| URL | `https://127.0.0.1:{panel_port}/{web_base_path}` |
 | Логин | `{panel_username}` |
 | Пароль | `{panel_password}` |
 
-Доступ через SSH-туннель:
+**Reality путь (без домена)** — доступ через SSH-туннель:
 ```
 ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
 ```
 Затем открой: `https://127.0.0.1:{panel_port}/{web_base_path}`
 
+**TLS путь (с доменом)** — прямой доступ:
+```
+https://{domain}:{panel_port}/{web_base_path}
+```
+
 ## 3. VPN-подключение
+
+**Reality путь:**
 
 | Параметр | Значение |
 |----------|----------|
 | Протокол | VLESS Reality |
 | Порт | 443 |
 | SNI | `{best_sni}` |
+| Клиент | Hiddify |
+
+**TLS путь:**
+
+| Параметр | Значение |
+|----------|----------|
+| Протокол | VLESS TLS |
+| Порт | 443 |
+| Домен | `{domain}` |
 | Клиент | Hiddify |
 
 Ссылка VLESS:
@@ -902,11 +969,13 @@ ssh {nickname} "sudo x-ui setting -reset" # сбросить пароль пан
 |----------|--------|
 | Вход под root | Отключён |
 | Вход по паролю | Отключён |
-| Файрвол UFW | Включён (SSH, 80, 443) |
+| Файрвол UFW | Включён (SSH, 443) |
 | fail2ban | Включён (3 попытки → бан 24ч) |
 | Усиление ядра | Включено (sysctl) |
 | BBR | Включён |
 | ICMP (ping) | Отключён |
+| SSH порт | {ssh_port} (если TLS путь, порт 22 закрыт) |
+| Обновление сертификата | Cron 0 3 * * * /root/cert-renew.sh (если TLS путь) |
 
 ## 7. Решение проблем
 
@@ -915,9 +984,11 @@ ssh {nickname} "sudo x-ui setting -reset" # сбросить пароль пан
 | Connection refused | `ssh {nickname} "sudo x-ui status"` — перезапусти если остановлен |
 | Permission denied (publickey) | Проверь путь и права ключа: `ls -la ~/.ssh/{nickname}_key` |
 | Host key verification failed | `ssh-keygen -R {SERVER_IP}` и переподключись |
-| Панель недоступна | Используй SSH-туннель (см. раздел 2) |
-| VPN не подключается | Неверный SNI или сервер лежит — проверь `sudo x-ui log` |
+| Панель недоступна (Reality) | Используй SSH-туннель (см. раздел 2) |
+| Панель недоступна (TLS) | Проверь UFW: `sudo ufw status`, убедись порт {panel_port} открыт |
+| VPN не подключается | Неверный SNI/домен или сервер лежит — проверь `sudo x-ui log` |
 | Забыл пароль панели | `ssh {nickname} "sudo x-ui setting -reset"` |
+| Сертификат не обновился | `ssh {nickname} "sudo /root/cert-renew.sh"` и проверь `/var/log/cert-renew.log` |
 
 ## 8. Инструкции для Claude Code
 
@@ -1013,21 +1084,25 @@ VPN-сервер полностью настроен и работает!
 Безопасность сервера:
    Root-вход отключён
    Парольный вход отключён
-   Файрвол включён (порты: SSH, 80, 443)
+   Файрвол включён (порты: SSH, 443)
    fail2ban защищает от брутфорса
    Ядро усилено (sysctl)
    BBR включён (TCP-оптимизация)
    ICMP отключён (сервер не пингуется)
+   [TLS] SSH переведён на порт {ssh_port}, порт 22 закрыт
+   [TLS] Сертификат обновляется автоматически каждый день в 3:00
 
 Панель 3x-ui:
-   URL:      https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
+   [Reality] URL: https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
+             Туннель: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
+   [TLS]     URL: https://{domain}:{panel_port}/{web_base_path} (прямой доступ)
    Login:    {panel_username}
    Password: {panel_password}
 
 VPN-подключение:
-   Протокол:  VLESS Reality
-   Порт:      443
-   SNI:       {best_sni}
+   [Path A] Протокол: VLESS TCP+Reality   | Порт: 443 | SNI: {best_sni}
+   [Path B] Протокол: VLESS TCP+TLS       | Порт: 443 | Домен: {domain}
+   [Path C] Протокол: VLESS XHTTP+Reality | Порт: 443 | SNI: {best_sni} | Path: /{xhttp_path}
 
 Клиент:
    Hiddify -- ссылка добавлена
@@ -1037,8 +1112,9 @@ VPN-подключение:
    ssh {nickname} "sudo x-ui status"        # статус панели
    ssh {nickname} "sudo x-ui restart"       # перезапустить панель
    ssh {nickname} "sudo x-ui log"           # логи
+   [TLS] ssh {nickname} "sudo /root/cert-renew.sh"  # обновить сертификат вручную
 
-SSH-туннель к админке:
+[Reality] SSH-туннель к админке:
    ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
    Затем открыть: https://127.0.0.1:{panel_port}/{web_base_path}
 
@@ -1063,7 +1139,7 @@ SSH-туннель к админке:
 8. **Steps 7 and 9 are DEFERRED** -- SSH lockdown and fail2ban are installed at the very end (Step 22)
 
 ### Part 2 (VPN)
-9. **NEVER expose panel to internet** -- access only via SSH tunnel
+9. **Reality path: NEVER expose panel to internet** -- access only via SSH tunnel; **TLS path: panel accessible via domain** (port opened in UFW, valid SSL cert, 2FA required)
 10. **NEVER skip firewall configuration** -- only open needed ports
 11. **ALWAYS save panel credentials** -- show them once, clearly
 12. **ALWAYS verify connection works** before declaring success

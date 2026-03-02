@@ -1,4 +1,4 @@
-# 3x-ui-setup
+# 3x-ui Skill — Extended
 
 **Claude Code skill for automated VPN server deployment**
 
@@ -6,16 +6,23 @@
 
 > **Русская версия**: [README.ru.md](README.ru.md)
 
+---
+
+> ### Based on the original skill by [AndyShaman](https://github.com/AndyShaman/3x-ui-skill)
+> This repository is a fork of [AndyShaman/3x-ui-skill](https://github.com/AndyShaman/3x-ui-skill) — the complete foundation this work is built on. All credit for the original design, workflow, and implementation goes to the original author. This fork adds extended configuration options on top of that work.
+
+---
+
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AndyShaman/3x-ui-skill/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/signalasiakit-create/3x-ui-skill/main/install.sh | bash
 ```
 
 Or manually:
 
 ```bash
-git clone https://github.com/AndyShaman/3x-ui-skill.git
+git clone https://github.com/signalasiakit-create/3x-ui-skill.git
 cp -r 3x-ui-skill/skill ~/.claude/skills/3x-ui-setup
 rm -rf 3x-ui-skill
 ```
@@ -30,13 +37,55 @@ Built for beginners who want a secure, censorship-resistant connection without l
 
 - 🔒 **Full server hardening** — SSH keys, firewall (UFW), fail2ban, kernel tweaks
 - 📦 **3x-ui panel** — installed with randomized credentials and secure defaults
-- ⚡ **VLESS Reality** — recommended path, no domain needed
-- 🌐 **VLESS TLS** — alternative path with domain + auto SSL via acme.sh
-- 🎭 **Nginx fallback page** — camouflage for the TLS path
+- ⚡ **VLESS TCP + Reality** — recommended path, no domain needed
+- 🌐 **VLESS TCP + TLS** — domain path with auto SSL, panel accessible via domain directly
+- 🕸️ **VLESS XHTTP + Reality** — SplitHTTP transport, maximum DPI resistance
+- 🎭 **NebulaDrive stub site** — realistic cloud storage page as Nginx camouflage
+- 🔑 **SSH on custom port** — port 22 closed, SSH moved to user-chosen port
+- ♻️ **Certificate auto-renewal** — cron script opens port 80, renews, closes — daily at 03:00
 - 📱 **Hiddify client guidance** — step-by-step connection on any device
 - 🖥️ **Remote or local mode** — works over SSH from your machine or directly on the server
 - ✅ **Checkpoint-driven workflow** — every critical step is verified before moving on
 - 👻 **ICMP disabled** — server does not respond to ping for stealth
+
+## Protocol Options
+
+| | Path A | Path B | Path C |
+|--|--------|--------|--------|
+| **Transport** | TCP | TCP | XHTTP (SplitHTTP) |
+| **Security** | Reality | TLS | Reality |
+| **Domain needed** | No | Yes | No |
+| **Difficulty** | Easy | Medium | Easy |
+| **Fallback site** | No | Yes (Nginx stub) | No |
+| **DPI resistance** | High | High | Very high |
+| **Panel access** | SSH tunnel | Direct via domain | SSH tunnel |
+| **Recommended for** | Beginners | Users with domain | Max stealth |
+
+> **Path A** is recommended for most users. **Path C** (XHTTP) is the hardest to detect and block but requires an up-to-date client.
+
+## What's New in This Fork
+
+### Panel via Domain (Path B)
+When a domain is configured with a valid SSL certificate, the 3x-ui panel is accessible directly — no SSH tunnel needed:
+```
+https://yourdomain.com:{panel_port}/{web_base_path}
+```
+
+### Certificate Auto-Renewal
+Port 80 is closed by default. A `/root/cert-renew.sh` script handles the firewall automatically. Runs daily at **03:00** via cron. Log: `/var/log/cert-renew.log`.
+
+### SSH on Custom Port
+Port 22 is replaced with a user-chosen port. UFW opens the new port first, then closes 22 — no lockout risk.
+
+### NebulaDrive Stub Site
+Nginx serves a realistic dark-themed cloud storage page. Regular browser visitors see a legitimate site, not a connection error. Built with JetBrains Mono + Russo One fonts, animated gradients.
+
+### XHTTP + Reality (Path C)
+New protocol: SplitHTTP transport with Reality security. Splits VPN traffic into many small HTTP requests — one of the hardest configurations for DPI to detect.
+- No domain required
+- No `xtls-rprx-vision` flow (not supported with XHTTP)
+- Sniffing with `routeOnly: true` to prevent broken sites
+- Requires Xray core v1.8.16+
 
 ## Workflow
 
@@ -47,40 +96,46 @@ Fresh VPS (IP + root + password)
   |   +-- SSH key generation
   |   +-- System update
   |   +-- Non-root user + sudo
-  |   +-- SSH lockdown (no root, no passwords)
-  |   +-- UFW firewall
-  |   +-- fail2ban
-  |   +-- Kernel hardening
+  |   +-- UFW firewall (SSH + 443 only)
+  |   +-- Kernel hardening (sysctl)
+  |   +-- BBR TCP optimization
+  |   +-- ICMP disabled (stealth)
   |   +-- SSH config shortcut
   |
-  +-- Part 2: VPN Installation
+  +-- Part 2: VPN Installation (choose path)
   |   +-- 3x-ui panel install
-  |   +-- ICMP disabled
-  |   +-- Protocol setup (Reality or TLS)
-  |   +-- Connection link generation
-  |   +-- Hiddify client setup
+  |   |
+  |   +-- [Path A] TCP + Reality
+  |   |     +-- Reality SNI scanner
+  |   |     +-- Create inbound via API
+  |   |     +-- Panel via SSH tunnel
+  |   |
+  |   +-- [Path B] TCP + TLS (domain)
+  |   |     +-- SSL certificate (acme.sh)
+  |   |     +-- Panel via domain (direct)
+  |   |     +-- Cert renewal cron (03:00)
+  |   |     +-- SSH moved to custom port
+  |   |     +-- NebulaDrive stub site
+  |   |
+  |   +-- [Path C] XHTTP + Reality
+  |         +-- Reality SNI scanner
+  |         +-- Create XHTTP inbound via API
+  |         +-- Panel via SSH tunnel
   |
+  +-- Connection link + Hiddify setup
+  +-- fail2ban + SSH lockdown
   +-- Done: Secured server + Working VPN
 ```
 
-## What's Included
+## File Structure
 
 | File | Description |
 |------|-------------|
-| `skill/SKILL.md` | Main skill — complete setup automation |
-| `skill/references/vless-tls.md` | VLESS TLS setup path (domain required) |
-| `skill/references/fallback-nginx.md` | Nginx fallback page configuration for TLS |
+| `skill/SKILL.md` | Main skill — complete setup workflow |
+| `skill/references/vless-tls.md` | Path B: TCP + TLS with domain |
+| `skill/references/vless-xhttp-reality.md` | Path C: XHTTP + Reality (this fork) |
+| `skill/references/fallback-nginx.md` | Nginx NebulaDrive stub site |
 | `install.sh` | One-line installer script |
-
-## Supported Protocols
-
-| Feature | VLESS Reality | VLESS TLS |
-|---------|:------------:|:---------:|
-| Domain required | No | Yes |
-| SSL certificate | Not needed | Auto (acme.sh) |
-| Difficulty | Easy | Medium |
-| Fallback page | Built-in (target site) | Optional (Nginx) |
-| Recommended for | Beginners | Advanced users |
 
 ## Usage
 
@@ -95,9 +150,21 @@ The skill activates automatically when Claude detects a relevant request.
 ## Requirements
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI)
-- Fresh VPS (Ubuntu/Debian) with root access
+- Fresh VPS (Ubuntu 20.04+ / Debian 11+) with root access
 - SSH access from your machine
-- *(Optional)* Domain name — only needed for the TLS path
+- *(Path B only)* Domain name with A-record pointing to VPS IP
+
+## Clients
+
+| Platform | App |
+|----------|-----|
+| Android | [Hiddify](https://github.com/hiddify/hiddify-app/releases) |
+| iOS | [Hiddify](https://apps.apple.com/app/hiddify/id6596777532) |
+| Windows | [Hiddify](https://github.com/hiddify/hiddify/releases) |
+| macOS | [Hiddify](https://github.com/hiddify/hiddify-app/releases) |
+| Linux | [Hiddify](https://github.com/hiddify/hiddify-app/releases) |
+
+Path C (XHTTP) also works with Nekobox, v2rayN — latest versions required.
 
 ## Troubleshooting
 
@@ -105,16 +172,12 @@ The skill activates automatically when Claude detects a relevant request.
 |---------|----------|
 | `Permission denied (publickey)` | Check SSH key permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/*` |
 | `Host key verification failed` | Remove old key: `ssh-keygen -R <server-ip>` |
-| Panel not accessible in browser | Use SSH tunnel: `ssh -L 2053:localhost:2053 user@server` |
+| Panel not accessible (Path A/C) | Use SSH tunnel: `ssh -L {port}:127.0.0.1:{port} {nickname}` |
+| Panel not accessible (Path B) | Check UFW: `sudo ufw status` — panel port must be open |
 | Reality not connecting | Re-run the SNI scanner to find a working target |
+| Certificate not renewed | Run manually: `sudo /root/cert-renew.sh`, check `/var/log/cert-renew.log` |
 | Forgot panel password | Reset on server: `sudo x-ui setting -reset` |
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/improvement`)
-3. Make your changes
-4. Submit a pull request
+| XHTTP client error | Update Hiddify/Nekobox/v2rayN to latest version |
 
 ## License
 
@@ -122,8 +185,7 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## Credits
 
-Built on top of these projects:
-
-- [3x-ui](https://github.com/mhsanaei/3x-ui) — Xray panel with multi-protocol support
-- [Xray-core](https://github.com/XTLS/Xray-core) — the proxy engine behind VLESS, Reality, and more
-- [Hiddify](https://github.com/hiddify/hiddify-app) — cross-platform proxy client
+- **Original skill:** [AndyShaman/3x-ui-skill](https://github.com/AndyShaman/3x-ui-skill) — the complete foundation this work is built on
+- **3x-ui panel:** [mhsanaei/3x-ui](https://github.com/mhsanaei/3x-ui)
+- **Xray core:** [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
+- **Hiddify client:** [hiddify/hiddify-app](https://github.com/hiddify/hiddify-app)
