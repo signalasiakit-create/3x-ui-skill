@@ -60,7 +60,7 @@ First, determine **execution mode**:
 4. **Server nickname** -- for SSH config (e.g., `myserver`, `vpn1`)
 5. **Has domain?** -- if unsure, recommend "no" (Reality path, simpler)
 6. **Domain name** (if yes to #5) -- must already point to server IP
-7. **SSH port** (TLS path only) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
+7. **SSH port** (if domain configured) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
 
 ### Local Mode -- ASK the user for:
 
@@ -68,7 +68,7 @@ First, determine **execution mode**:
 2. **Server nickname** -- for future SSH access from user's computer (e.g., `myserver`, `vpn1`)
 3. **Has domain?** -- if unsure, recommend "no" (Reality path, simpler)
 4. **Domain name** (if yes to #3) -- must already point to server IP
-5. **SSH port** (TLS path only) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
+5. **SSH port** (if domain configured) -- custom port for SSH access (any unused port above 1024, e.g., 2222 or 2345); port 22 will be closed after switching
 
 In Local mode, get server IP automatically:
 ```bash
@@ -310,11 +310,11 @@ Extract and save these values. Show them to the user:
   Port:     {panel_port}
   Path:     {web_base_path}
 
-  Reality path (no domain):
+  Без домена:
     URL:  https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
-    Команда туннеля: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
+    Туннель: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
 
-  TLS path (with domain) — задаётся позже в vless-tls.md Step 3:
+  С доменом — настраивается в Step 14c (для всех протоколов VPN):
     URL:  https://{domain}:{panel_port}/{web_base_path} (прямой доступ)
 ```
 
@@ -326,8 +326,8 @@ ssh {nickname} "sudo x-ui status"
 
 If not running: `ssh {nickname} "sudo x-ui start"`
 
-**Reality path:** Panel port is NOT opened in firewall — access only via SSH tunnel for security.
-**TLS path:** Panel port is opened in UFW in vless-tls.md Step 3 — direct access via domain with valid SSL certificate.
+**Без домена:** Panel port is NOT opened in firewall — access only via SSH tunnel for security.
+**С доменом:** SSL cert and UFW access configured in Step 14c — direct domain access works for ALL VPN protocol paths (A, B, C).
 
 ## Step 14b: Enable BBR
 
@@ -343,6 +343,176 @@ ssh {nickname} "sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc"
 ```
 
 Expected: `net.ipv4.tcp_congestion_control = bbr`, `net.core.default_qdisc = fq`.
+
+## Step 14c: Configure Panel Domain Access (if domain)
+
+**Only if user has a domain.** This step sets up direct HTTPS panel access via domain — independent of which VPN protocol (Path A, B, or C) you choose later.
+
+### Verify DNS
+
+```bash
+nslookup {domain}
+```
+
+Must return the server IP. If not — wait 5-10 minutes for DNS propagation.
+
+### Issue SSL Certificate
+
+Temporarily open port 80, issue certificate via acme.sh, then close it:
+
+```bash
+ssh {nickname} "sudo ufw allow 80/tcp"
+```
+
+```bash
+ssh {nickname} "sudo apt install -y socat curl && curl https://get.acme.sh | sh -s email=admin@{domain} && sudo ~/.acme.sh/acme.sh --issue -d {domain} --standalone --httpport 80"
+```
+
+Install certificate to target path:
+
+```bash
+ssh {nickname} "sudo mkdir -p /root/cert/{domain} && sudo ~/.acme.sh/acme.sh --install-cert -d {domain} \
+  --key-file /root/cert/{domain}/privkey.pem \
+  --fullchain-file /root/cert/{domain}/fullchain.pem \
+  --reloadcmd 'x-ui restart'"
+```
+
+Close port 80:
+
+```bash
+ssh {nickname} "sudo ufw deny 80/tcp"
+```
+
+Verify certificate files exist:
+
+```bash
+ssh {nickname} "sudo ls -la /root/cert/{domain}/"
+```
+
+### Configure Panel with SSL
+
+```bash
+ssh {nickname} "sudo /usr/local/x-ui/x-ui cert -webCert /root/cert/{domain}/fullchain.pem -webCertKey /root/cert/{domain}/privkey.pem"
+ssh {nickname} "sudo x-ui restart"
+```
+
+Open panel port in UFW so it's accessible via domain from anywhere:
+
+```bash
+ssh {nickname} "sudo ufw allow {panel_port}/tcp && sudo ufw status"
+```
+
+Panel is now accessible at:
+
+```
+https://{domain}:{panel_port}/{web_base_path}
+```
+
+No browser warning — the certificate matches the domain. Works for **all VPN paths (A, B, C)**.
+
+**Note:** Panel port is now exposed to the internet. Change default credentials and enable 2FA (Panel Settings → Account → Two-Factor Authentication) after first login.
+
+### Certificate Auto-Renewal
+
+Port 80 is closed by default. Create a script that temporarily opens it for ACME challenge:
+
+```bash
+ssh {nickname} 'sudo tee /root/cert-renew.sh << '"'"'EOF'"'"'
+#!/bin/bash
+LOG=/var/log/cert-renew.log
+echo "=== $(date) ===" >> $LOG
+
+# Open port 80 for ACME challenge
+ufw allow 80/tcp >> $LOG 2>&1
+
+# Renew certificate (acme.sh checks expiry automatically)
+"/root/.acme.sh"/acme.sh --cron --home "/root/.acme.sh" >> $LOG 2>&1
+
+# Restart x-ui to apply renewed certificate
+x-ui restart >> $LOG 2>&1
+
+# Close port 80
+ufw deny 80/tcp >> $LOG 2>&1
+
+echo "=== Done ===" >> $LOG
+EOF
+sudo chmod +x /root/cert-renew.sh'
+```
+
+Set up cron to run daily at 03:00:
+
+```bash
+ssh {nickname} '(sudo crontab -l 2>/dev/null | grep -v acme | grep -v cert-renew; echo "0 3 * * * /root/cert-renew.sh") | sudo crontab -'
+```
+
+Verify:
+
+```bash
+ssh {nickname} "sudo crontab -l"
+```
+
+Expected output includes: `0 3 * * * /root/cert-renew.sh`
+
+Test the script manually:
+
+```bash
+ssh {nickname} "sudo /root/cert-renew.sh && echo 'Renewal script OK' && tail -10 /var/log/cert-renew.log"
+```
+
+### Move SSH to Custom Port
+
+**IMPORTANT:** UFW opens the new port BEFORE changing sshd_config — no lockout risk.
+
+```bash
+ssh {nickname} "sudo ufw allow {ssh_port}/tcp"
+```
+
+Update sshd_config:
+
+```bash
+ssh {nickname} "sudo sed -i 's/^#\?Port .*/Port {ssh_port}/' /etc/ssh/sshd_config"
+```
+
+Verify and restart:
+
+```bash
+ssh {nickname} "grep '^Port' /etc/ssh/sshd_config"
+ssh {nickname} "sudo systemctl restart sshd"
+```
+
+**CRITICAL — test new SSH connection BEFORE closing port 22.** Open a new terminal and test:
+
+```bash
+ssh -p {ssh_port} -i ~/.ssh/{nickname}_key {username}@{SERVER_IP}
+```
+
+If connection works, close port 22:
+
+```bash
+ssh -p {ssh_port} {nickname} "sudo ufw deny 22/tcp && sudo ufw status"
+```
+
+Update `~/.ssh/config` on local machine to use the new port:
+
+```bash
+cat >> ~/.ssh/config << 'EOF'
+
+Host {nickname}
+    HostName {SERVER_IP}
+    User {username}
+    IdentityFile ~/.ssh/{nickname}_key
+    IdentitiesOnly yes
+    Port {ssh_port}
+EOF
+```
+
+(Or edit the existing `{nickname}` entry if already present.)
+
+Verify the shortcut works:
+
+```bash
+ssh {nickname} "echo 'SSH on port {ssh_port} works'"
+```
 
 ## Step 15: Disable ICMP (Stealth)
 
@@ -367,17 +537,18 @@ Ask the user which setup they want:
 |--|--------|--------|--------|
 | **Transport** | TCP | TCP | XHTTP (SplitHTTP) |
 | **Security** | Reality | TLS | Reality |
-| **Domain needed** | No | Yes | No |
+| **Domain for VPN** | No | Yes (required) | No |
 | **Difficulty** | Easy | Medium | Easy |
 | **Fallback site** | No | Yes (Nginx stub) | No |
 | **DPI resistance** | High | High | Very high |
 | **Flow** | xtls-rprx-vision | xtls-rprx-vision | None (not used) |
+| **Panel access** | SSH tunnel (or domain if Step 14c) | Via domain | SSH tunnel (or domain if Step 14c) |
 
 **Recommend Path A for beginners.** Path C (XHTTP) is slightly harder to block but requires an up-to-date client (Hiddify, Nekobox, v2rayN — latest versions).
 
 ### ⚠️ CRITICAL: Own domain CANNOT be used as Reality SNI/dest
 
-**If user has a domain — they MUST use Path B (TLS), not Reality.**
+Having a domain does **not** force you to use Path B. You can configure panel access via domain (Step 14c) and still choose Path A or C for VPN. The restriction below applies only to the Reality SNI/dest setting, not to panel access.
 
 Reality works by physically connecting to the dest server and borrowing its real TLS handshake. Xray literally opens a TCP connection to `dest:443` on every client connect. If the domain points to the same server, Xray connects to itself — creating a loop that breaks the connection entirely.
 
@@ -385,26 +556,31 @@ Reality works by physically connecting to the dest server and borrowing its real
 Path A/C — Reality dest MUST be an external server (different IP, from scanner):
   Client → Xray → connects to neighbor-site.com:443 (real external server) → borrows TLS ✅
 
-Path A/C — Using own domain as dest is IMPOSSIBLE:
+Path A/C — Using own domain as Reality dest is IMPOSSIBLE:
   Client → Xray → connects to yourdomain.com:443 → same IP → loop → broken ❌
 ```
 
 **If user says "I have a domain, can I use it for Reality SNI?"** — answer:
-> No. Reality requires an external server at a different IP. Your domain points to this server, which creates a loop. Use Path B (TLS) instead — it uses your domain properly with a real certificate and gives the same level of protection.
+> No. Reality requires an external server at a different IP. Your domain creates a loop as the SNI/dest. Use the scanner to find a neighbor server. Your domain can still be used for panel access (Step 14c), and if you want TLS-based VPN as well, choose Path B.
 
 **The only exception** would be if the domain is behind Cloudflare proxy (orange cloud enabled) — then `yourdomain.com` resolves to Cloudflare's IP, not your server. In that case it technically works as a dest, but this is an advanced edge case and not recommended.
 
-### Path A: VLESS TCP + Reality (NO domain) -- RECOMMENDED
+### Path A: VLESS TCP + Reality -- RECOMMENDED
+
+No domain required for VPN. Domain optional — only affects panel access (Step 14c).
 
 Go to Step 17A.
 
-### Path B: VLESS TCP + TLS (domain required)
+### Path B: VLESS TCP + TLS (domain required for VPN)
 
 Go to `references/vless-tls.md`.
 
-> **If user has a domain and asks about Reality** — redirect to Path B. Explain: TLS with your own valid certificate is just as effective against DPI as Reality. Reality is for when you have no domain.
+> **If user has a domain and wants TLS VPN** (Nginx stub site, direct Xray TLS inbound) — use Path B.
+> **If user has a domain and wants Reality VPN** — use Path A or C; domain only affects panel access (Step 14c).
 
-### Path C: VLESS XHTTP + Reality (NO domain, max stealth)
+### Path C: VLESS XHTTP + Reality (max stealth, domain optional for panel only)
+
+No domain required for VPN. Domain optional — only affects panel access (Step 14c).
 
 Run the Reality scanner first (Step 17A — scanner only, stop after choosing SNI), then go to `references/vless-xhttp-reality.md`.
 
@@ -1089,13 +1265,13 @@ VPN-сервер полностью настроен и работает!
    Ядро усилено (sysctl)
    BBR включён (TCP-оптимизация)
    ICMP отключён (сервер не пингуется)
-   [TLS] SSH переведён на порт {ssh_port}, порт 22 закрыт
-   [TLS] Сертификат обновляется автоматически каждый день в 3:00
+   [Domain] SSH переведён на порт {ssh_port}, порт 22 закрыт
+   [Domain] Сертификат обновляется автоматически каждый день в 3:00
 
 Панель 3x-ui:
-   [Reality] URL: https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
-             Туннель: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
-   [TLS]     URL: https://{domain}:{panel_port}/{web_base_path} (прямой доступ)
+   [Без домена] URL: https://127.0.0.1:{panel_port}/{web_base_path} (через SSH-туннель)
+                Туннель: ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
+   [С доменом]  URL: https://{domain}:{panel_port}/{web_base_path} (прямой доступ, все протоколы)
    Login:    {panel_username}
    Password: {panel_password}
 
@@ -1112,9 +1288,9 @@ VPN-подключение:
    ssh {nickname} "sudo x-ui status"        # статус панели
    ssh {nickname} "sudo x-ui restart"       # перезапустить панель
    ssh {nickname} "sudo x-ui log"           # логи
-   [TLS] ssh {nickname} "sudo /root/cert-renew.sh"  # обновить сертификат вручную
+   [Domain] ssh {nickname} "sudo /root/cert-renew.sh"  # обновить сертификат вручную
 
-[Reality] SSH-туннель к админке:
+[Без домена] SSH-туннель к панели:
    ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
    Затем открыть: https://127.0.0.1:{panel_port}/{web_base_path}
 
@@ -1139,7 +1315,7 @@ VPN-подключение:
 8. **Steps 7 and 9 are DEFERRED** -- SSH lockdown and fail2ban are installed at the very end (Step 22)
 
 ### Part 2 (VPN)
-9. **Reality path: NEVER expose panel to internet** -- access only via SSH tunnel; **TLS path: panel accessible via domain** (port opened in UFW, valid SSL cert, 2FA required)
+9. **No domain: NEVER expose panel port to internet** -- access only via SSH tunnel; **Domain configured (Step 14c): panel accessible via domain for ALL paths** (A, B, C) — UFW open, valid SSL cert, 2FA required
 10. **NEVER skip firewall configuration** -- only open needed ports
 11. **ALWAYS save panel credentials** -- show them once, clearly
 12. **ALWAYS verify connection works** before declaring success

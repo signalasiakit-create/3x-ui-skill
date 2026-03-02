@@ -4,6 +4,8 @@ Use this when user wants XHTTP transport with Reality security instead of TCP+Re
 
 **Why XHTTP+Reality:** XHTTP (SplitHTTP) splits traffic into many small HTTP requests, making it look like regular browser activity. Combined with Reality (which mimics a real TLS handshake), this is one of the hardest configurations to detect and block.
 
+**Panel access:** If the user has a domain and SKILL.md Step 14c was completed, the panel is already accessible at `https://{domain}:{panel_port}/{web_base_path}` — no SSH tunnel needed for panel management. This is independent of the XHTTP+Reality VPN protocol.
+
 **Key differences from TCP+Reality:**
 - Transport is `xhttp` instead of `tcp`
 - Requires a custom path (e.g. `/updates`)
