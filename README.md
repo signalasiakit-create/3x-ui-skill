@@ -54,19 +54,21 @@ Built for beginners who want a secure, censorship-resistant connection without l
 |--|--------|--------|--------|
 | **Transport** | TCP | TCP | XHTTP (SplitHTTP) |
 | **Security** | Reality | TLS | Reality |
-| **Domain needed** | No | Yes | No |
+| **Domain for VPN** | No | Yes (required) | No |
 | **Difficulty** | Easy | Medium | Easy |
 | **Fallback site** | No | Yes (Nginx stub) | No |
 | **DPI resistance** | High | High | Very high |
-| **Panel access** | SSH tunnel | Direct via domain | SSH tunnel |
+| **Panel access** | SSH tunnel (or domain if configured) | Direct via domain | SSH tunnel (or domain if configured) |
 | **Recommended for** | Beginners | Users with domain | Max stealth |
 
 > **Path A** is recommended for most users. **Path C** (XHTTP) is the hardest to detect and block but requires an up-to-date client.
+>
+> **Domain is optional for Path A and C** — if you have a domain, panel access via domain is configured independently of the VPN protocol choice.
 
 ## What's New in This Fork
 
-### Panel via Domain (Path B)
-When a domain is configured with a valid SSL certificate, the 3x-ui panel is accessible directly — no SSH tunnel needed:
+### Panel via Domain (all VPN paths)
+If a domain is configured, the 3x-ui panel is accessible directly via domain — regardless of which VPN protocol (Path A, B, or C) you use. SSL cert, UFW access, and cert renewal are set up in a dedicated step before the protocol choice:
 ```
 https://yourdomain.com:{panel_port}/{web_base_path}
 ```
