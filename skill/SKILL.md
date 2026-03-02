@@ -811,6 +811,26 @@ After user connects via Hiddify, verify:
 ssh {nickname} "sudo x-ui status && ss -tlnp | grep -E '443|{panel_port}'"
 ```
 
+## Step 21a: Optional — WARP Outbound (Fix Google Geo-Detection)
+
+**Offer this after VPN is verified working (Step 21).**
+
+Tell the user:
+
+```
+Хочешь настроить WARP? Это маршрутизирует Google/YouTube через сеть Cloudflare:
+- Google будет видеть IP Cloudflare вместо датацентра (Hetzner/Vultr)
+- Уберёт капчи Google и проблемы с гео-детектом
+- Остальной трафик идёт напрямую — скорость не падает
+
+Займёт ~5 минут.
+```
+
+If yes → follow `references/warp-outbound.md`, then return here.
+If no → proceed to Step 22.
+
+---
+
 ## Step 22: Generate Guide File & Finalize SSH Access
 
 This step generates a comprehensive guide file with all credentials and instructions, then finalizes SSH key-based access.

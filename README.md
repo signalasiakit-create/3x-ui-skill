@@ -43,6 +43,7 @@ Built for beginners who want a secure, censorship-resistant connection without l
 - 🎭 **NebulaDrive stub site** — realistic cloud storage page as Nginx camouflage
 - 🔑 **SSH on custom port** — port 22 closed, SSH moved to user-chosen port
 - ♻️ **Certificate auto-renewal** — cron script opens port 80, renews, closes — daily at 03:00
+- ☁️ **WARP outbound** — route Google/YouTube through Cloudflare to fix geo-detection and CAPTCHAs
 - 📱 **Hiddify client guidance** — step-by-step connection on any device
 - 🖥️ **Remote or local mode** — works over SSH from your machine or directly on the server
 - ✅ **Checkpoint-driven workflow** — every critical step is verified before moving on
@@ -81,6 +82,9 @@ Port 22 is replaced with a user-chosen port. UFW opens the new port first, then 
 
 ### NebulaDrive Stub Site
 Nginx serves a realistic dark-themed cloud storage page. Regular browser visitors see a legitimate site, not a connection error. Built with JetBrains Mono + Russo One fonts, animated gradients.
+
+### WARP Outbound (Google Geo-Detection Fix)
+After the VPN is working, an optional step offers to route Google, YouTube, and Google AI services (Gemini, AI Studio) through Cloudflare WARP. This replaces the datacenter exit IP with a Cloudflare IP that Google trusts — eliminating CAPTCHAs and geo-blocks without slowing down non-Google traffic.
 
 ### XHTTP + Reality (Path C)
 New protocol: SplitHTTP transport with Reality security. Splits VPN traffic into many small HTTP requests — one of the hardest configurations for DPI to detect.
@@ -137,6 +141,7 @@ Fresh VPS (IP + root + password)
 | `skill/references/vless-tls.md` | Path B: TCP + TLS with domain |
 | `skill/references/vless-xhttp-reality.md` | Path C: XHTTP + Reality (this fork) |
 | `skill/references/fallback-nginx.md` | Nginx NebulaDrive stub site |
+| `skill/references/warp-outbound.md` | Optional: WARP outbound for Google geo-detection fix |
 | `install.sh` | One-line installer script |
 
 ## Usage
