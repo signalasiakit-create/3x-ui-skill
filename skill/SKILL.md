@@ -1,7 +1,71 @@
 ---
 name: 3x-ui-setup
-description: Complete VPN server setup from scratch. Takes a fresh VPS (IP + root + password from hosting provider) through full server hardening and 3x-ui (Xray proxy panel) installation with VLESS Reality or VLESS TLS. Guides user through connecting via Hiddify client. Use when user mentions v2ray, xray, vless, 3x-ui, proxy server, vpn server, or wants to set up encrypted proxy access on a VPS. Designed for beginners — hand-holds through every step.
+description: Complete VPN server setup from scratch. Takes a fresh VPS (IP + root + password from hosting provider) through full server hardening and 3x-ui (Xray proxy panel) installation with VLESS Reality or VLESS TLS. Guides user through connecting via Hiddify client. ⚠️ REQUIRES STRICT STEP-BY-STEP EXECUTION — use magic phrase "Настрой строго по всем шагам скила" at start. Designed for beginners — hand-holds through every step without skipping.
 allowed-tools: Bash,Read,Write,Edit
+---
+
+# ⚠️ HOW TO USE THIS SKILL CORRECTLY
+
+**IMPORTANT:** This skill requires **strict step-by-step adherence**. Skipping or combining steps can cause configuration issues, lockouts, or security problems. Claude Code tends to skip steps — use these **magic phrases** to keep the process on track.
+
+## Magic Phrases for Users
+
+### Starting fresh:
+```
+Настрой VPN-сервер строго по всем шагам скила.
+Перед каждым шагом назови его номер и название.
+Не переходи к следующему шагу без моего подтверждения.
+На шагах с выбором или вопросами — обязательно спрашивай меня.
+```
+
+### Resuming after interruption:
+```
+Сессия прервалась. Покажи текущий статус установки:
+- Какие шаги уже выполнены?
+- Какой шаг выполняется сейчас?
+- Какой будет следующий?
+```
+
+### Unsticking a stuck installation:
+```
+Ты пропустил несколько шагов. Вернёмся к {STEP_NUMBER}.
+Выполни его полностью, затем мы продолжим по порядку.
+```
+
+## Why Strict Step-by-Step Matters
+
+1. **Server lockout risk** — Step 6 must be tested before Step 7 disables root
+2. **SSL cert issues** — Step 14c (domain) must complete before SSH port migration
+3. **Panel credentials** — must be saved in Step 14 before Step 18
+4. **SSH key verification** — must work in Step 21 before Step 22 locks SSH
+5. **WARP configuration** — optional in Step 21a, but must follow VPN verification
+
+## Session Progress Template
+
+When resuming, show the user this progress:
+
+```
+📋 Текущий статус установки VPN-сервера {nickname}
+
+✅ COMPLETED:
+  Step 0: Собраны данные ({mode} mode)
+  Step 1: SSH-ключ сгенерирован
+  Step 2-13: Сервер защищен (firewall, hardening, etc.)
+  Step 14: Панель 3x-ui установлена
+  Step 14b: BBR включен
+
+⏳ IN PROGRESS:
+  Step 14c: Конфигурация домена (SSL сертификат)
+
+❓ NEXT:
+  Step 15: Disable ICMP
+  Step 16: Выбор протокола (Path A/B/C)
+  Step 17A: Reality сканер
+  ... и далее
+
+Продолжим с Step 14c?
+```
+
 ---
 
 # VPN Server Setup (3x-ui)
