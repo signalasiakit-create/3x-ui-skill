@@ -523,61 +523,6 @@ Test the script manually:
 ssh {nickname} "sudo /root/cert-renew.sh && echo 'Renewal script OK' && tail -10 /var/log/cert-renew.log"
 ```
 
-### Move SSH to Custom Port
-
-**IMPORTANT:** UFW opens the new port BEFORE changing sshd_config — no lockout risk.
-
-```bash
-ssh {nickname} "sudo ufw allow {ssh_port}/tcp"
-```
-
-Update sshd_config:
-
-```bash
-ssh {nickname} "sudo sed -i 's/^#\?Port .*/Port {ssh_port}/' /etc/ssh/sshd_config"
-```
-
-Verify and restart:
-
-```bash
-ssh {nickname} "grep '^Port' /etc/ssh/sshd_config"
-ssh {nickname} "sudo systemctl restart sshd"
-```
-
-**CRITICAL — test new SSH connection BEFORE closing port 22.** Open a new terminal and test:
-
-```bash
-ssh -p {ssh_port} -i ~/.ssh/{nickname}_key {username}@{SERVER_IP}
-```
-
-If connection works, close port 22:
-
-```bash
-ssh -p {ssh_port} {nickname} "sudo ufw deny 22/tcp && sudo ufw status"
-```
-
-Update `~/.ssh/config` on local machine to use the new port:
-
-```bash
-cat >> ~/.ssh/config << 'EOF'
-
-Host {nickname}
-    HostName {SERVER_IP}
-    User {username}
-    IdentityFile ~/.ssh/{nickname}_key
-    IdentitiesOnly yes
-    Port {ssh_port}
-EOF
-```
-
-(Or edit the existing `{nickname}` entry if already present.)
-
-Verify the shortcut works:
-
-```bash
-ssh {nickname} "echo 'SSH on port {ssh_port} works'"
-```
-
 ## Step 15: Disable ICMP (Stealth)
 
 Makes server invisible to ping scans:
@@ -897,15 +842,106 @@ If no → proceed to Step 22.
 
 ## Step 22: Generate Guide File & Finalize SSH Access
 
-This step generates a comprehensive guide file with all credentials and instructions, then finalizes SSH key-based access.
+**Order in this step:** SSH port migration → guide file → user verifies guide → fail2ban + lockdown.
+
+> ⚠️ SSH port migration is done HERE (not in Step 14c) so the guide captures the correct port.
 
 ### Remote Mode
+
+**22R-0: Move SSH to Custom Port (if domain configured in Step 14c)**
+
+**Only if the user has a domain.** Skip this sub-step if no domain.
+
+**IMPORTANT:** UFW opens the new port BEFORE changing sshd_config — no lockout risk.
+
+```bash
+ssh {nickname} "sudo ufw allow {ssh_port}/tcp"
+```
+
+Update sshd_config:
+
+```bash
+ssh {nickname} "sudo sed -i 's/^#\?Port .*/Port {ssh_port}/' /etc/ssh/sshd_config"
+```
+
+Verify and restart:
+
+```bash
+ssh {nickname} "grep '^Port' /etc/ssh/sshd_config"
+ssh {nickname} "sudo systemctl restart sshd"
+```
+
+**CRITICAL — test new SSH connection BEFORE closing port 22.** Open a new terminal and test:
+
+```bash
+ssh -p {ssh_port} -i ~/.ssh/{nickname}_key {username}@{SERVER_IP}
+```
+
+If connection works, close port 22:
+
+```bash
+ssh -p {ssh_port} {nickname} "sudo ufw deny 22/tcp && sudo ufw status"
+```
+
+Update `~/.ssh/config` on local machine to use the new port:
+
+```bash
+cat >> ~/.ssh/config << 'EOF'
+
+Host {nickname}
+    HostName {SERVER_IP}
+    User {username}
+    IdentityFile ~/.ssh/{nickname}_key
+    IdentitiesOnly yes
+    Port {ssh_port}
+EOF
+```
+
+(Or edit the existing `{nickname}` entry if already present.)
+
+Verify:
+
+```bash
+ssh {nickname} "echo 'SSH on port {ssh_port} works'"
+```
+
+---
 
 **22R-1: Generate guide file locally**
 
 Use the **Write tool** to create `~/vpn-{nickname}-guide.md` on the user's local machine. Use the **Guide File Template** below, substituting all `{variables}` with actual values.
 
 Tell user: **Методичка сохранена в ~/vpn-{nickname}-guide.md — там все пароли, доступы и инструкции.**
+
+---
+
+**22R-1a: ⚠️ VERIFICATION CHECKPOINT — ОБЯЗАТЕЛЬНО ПЕРЕД ПРОДОЛЖЕНИЕМ**
+
+**Do NOT proceed to fail2ban until user confirms the guide is correct.**
+
+Tell the user:
+
+```
+⚠️ Открой файл ~/vpn-{nickname}-guide.md и проверь каждый пункт:
+
+☐  IP сервера:       {SERVER_IP}
+☐  Пользователь:     {username}
+☐  Пароль sudo:      заполнен (не пустой, не "{sudo_password}")
+☐  SSH ключ:         ~/.ssh/{nickname}_key
+☐  SSH порт:         {ssh_port} — указан в разделе "Подключение к серверу"
+                     (если домена нет — порт 22)
+☐  Панель — логин:   {panel_username}
+☐  Панель — пароль:  заполнен (не пустой)
+☐  Панель — URL:     правильный (SSH-туннель или домен)
+☐  VLESS ссылка:     присутствует, одной строкой, без переносов
+
+Если что-то пустое или неверное — скажи, исправлю прямо сейчас.
+Только после "Методичка ОК" продолжу финальную блокировку сервера.
+```
+
+**Wait for user to say "Методичка ОК" (or equivalent) before proceeding!**
+
+---
 
 **22R-2: Final lockdown — fail2ban + SSH**
 
@@ -966,6 +1002,30 @@ scp {username}@{SERVER_IP}:~/vpn-guide.md ./
 ```
 
 **Fallback:** If SCP doesn't work (Windows without OpenSSH, network issues), show the full guide content directly in chat.
+
+#### 22L-2a: ⚠️ VERIFICATION CHECKPOINT — ОБЯЗАТЕЛЬНО ПЕРЕД ПРОДОЛЖЕНИЕМ
+
+Tell the user:
+
+```
+⚠️ Открой скачанный файл vpn-guide.md и проверь каждый пункт:
+
+☐  IP сервера:       {SERVER_IP}
+☐  Пользователь:     {username}
+☐  Пароль sudo:      заполнен (не пустой, не "{sudo_password}")
+☐  SSH ключ:         ~/.ssh/{nickname}_key
+☐  SSH порт:         {ssh_port} — указан в разделе "Подключение к серверу"
+                     (если домена нет — порт 22)
+☐  Панель — логин:   {panel_username}
+☐  Панель — пароль:  заполнен (не пустой)
+☐  Панель — URL:     правильный (SSH-туннель или домен)
+☐  VLESS ссылка:     присутствует, одной строкой, без переносов
+
+Если что-то пустое или неверное — скажи, исправлю прямо сейчас.
+Только после "Методичка ОК" продолжим настройку SSH-ключа.
+```
+
+**Wait for user to say "Методичка ОК" (or equivalent) before proceeding!**
 
 #### 22L-3: User creates SSH key on their laptop
 
@@ -1405,8 +1465,10 @@ VPN-подключение:
 12. **ALWAYS verify connection works** before declaring success
 13. **Ask before every destructive or irreversible action**
 14. **ALWAYS generate guide file** (Step 22) -- the user's single source of truth
-15. **Lock SSH + install fail2ban LAST** (Step 22) -- only after SSH key access is verified in BOTH modes
-16. **NEVER leave password auth enabled** after setup is complete
+15. **SSH port migration happens in Step 22 (22R-0), NOT in Step 14c** — this ensures the guide captures the correct port
+16. **ALWAYS show verification checklist after guide is generated** (Step 22R-1a) — wait for user confirmation before fail2ban
+17. **Lock SSH + install fail2ban LAST** (Step 22R-2) -- only after guide verified and SSH key confirmed working
+18. **NEVER leave password auth enabled** after setup is complete
 
 ## Troubleshooting
 
