@@ -35,7 +35,7 @@ allowed-tools: Bash,Read,Write,Edit
 ## Why Strict Step-by-Step Matters
 
 1. **Server lockout risk** — Step 6 must be tested before Step 7 disables root
-2. **SSL cert issues** — Step 14c (domain) must complete before SSH port migration
+2. **Guide completeness** — SSH port migration (Step 22R-0) must happen BEFORE guide generation (Step 22R-1), so the guide captures the correct port
 3. **Panel credentials** — must be saved in Step 14 before Step 18
 4. **SSH key verification** — must work in Step 21 before Step 22 locks SSH
 5. **WARP configuration** — optional in Step 21a, but must follow VPN verification
