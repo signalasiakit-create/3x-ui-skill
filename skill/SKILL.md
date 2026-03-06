@@ -4,6 +4,7 @@ description: >
   VPN server deployment assistant for 3x-ui panel on a fresh Linux VPS.
   Use when user provides a server IP/password and asks to set up a VPN, install 3x-ui,
   configure VLESS Reality or VLESS TLS, harden a new server, or set up Hiddify client.
+  Russian triggers: "настрой VPN", "поставь 3x-ui", "установи впн на сервер", "настрой сервер с нуля".
   Do NOT use for troubleshooting an existing VPN setup, client-only questions, or non-VPN server tasks.
 allowed-tools: Bash,Read,Write,Edit
 ---

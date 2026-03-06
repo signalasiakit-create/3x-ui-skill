@@ -1,0 +1,26 @@
+[
+  {
+    "query": "У меня новый VPS от Hetzner, IP 95.31.12.100, root пароль Provider123#. Хочу поставить VPN на сервер, чтобы смотреть YouTube без блокировок. Помоги настроить.",
+    "should_trigger": true
+  },
+  {
+    "query": "Купил VDS на DigitalOcean, хочу 3x-ui с VLESS Reality. Сервер чистый, ubuntu 22.04. IP: 142.93.45.22, пароль: Hk8!nPw2. С чего начать?",
+    "should_trigger": true
+  },
+  {
+    "query": "Помоги настроить vpn сервер с нуля. Есть vps ip и root пароль от провайдера. Нужно чтоб работал hiddify клиент.",
+    "should_trigger": true
+  },
+  {
+    "query": "VPN не подключается. Hiddify пишет connection timeout. Сервер уже настроен, 3x-ui стоит, но клиент не коннектится. Что проверить?",
+    "should_trigger": false
+  },
+  {
+    "query": "Как добавить второго пользователя в уже настроенную 3x-ui панель? Хочу дать доступ другу.",
+    "should_trigger": false
+  },
+  {
+    "query": "Поставь Docker на мой сервер ubuntu 22.04 и задеплой туда webapp на node.js. Сервер уже защищён, нужно только приложение.",
+    "should_trigger": false
+  }
+]
