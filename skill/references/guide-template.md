@@ -234,9 +234,6 @@ ssh {nickname} "ss -tlnp | grep 40000"
 # Должно быть: LISTEN 127.0.0.1:40000 (только локальный адрес)
 ```
 
-| SSH порт | {ssh_port} ({ssh_port_custom}: yes/no — если yes, порт 22 закрыт) |
-| Обновление сертификата | Cron 0 3 * * * /root/cert-renew.sh ({panel_via_domain}: yes/no — если yes) |
-
 ## 7. Решение проблем
 
 ### Проблемы с подключением
