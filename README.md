@@ -129,6 +129,12 @@ Fresh VPS (IP + root + password)
   |         +-- Panel via SSH tunnel
   |
   +-- Connection link + Hiddify setup
+  +-- Step 21a (Optional): WARP Outbound
+  |     +-- Install warp-cli
+  |     +-- Configure proxy mode
+  |     +-- Add Xray outbound + routing rule
+  |     +-- Test via SOCKS5
+  |
   +-- fail2ban + SSH lockdown
   +-- Done: Secured server + Working VPN
 ```
@@ -142,6 +148,7 @@ Fresh VPS (IP + root + password)
 | `skill/references/vless-xhttp-reality.md` | Path C: XHTTP + Reality (this fork) |
 | `skill/references/fallback-nginx.md` | Nginx NebulaDrive stub site |
 | `skill/references/warp-outbound.md` | Optional: WARP outbound for Google geo-detection fix |
+| `skill/references/warp-auto.sh` | Automation script for one-command WARP installation and verification |
 | `install.sh` | One-line installer script |
 
 ## Usage
@@ -185,6 +192,10 @@ Path C (XHTTP) also works with Nekobox, v2rayN — latest versions required.
 | Certificate not renewed | Run manually: `sudo /root/cert-renew.sh`, check `/var/log/cert-renew.log` |
 | Forgot panel password | Reset on server: `sudo x-ui setting -reset` |
 | XHTTP client error | Update Hiddify/Nekobox/v2rayN to latest version |
+| `warp-cli` not found (WARP) | Run: `ssh {nickname} "sudo apt update && sudo apt install -y cloudflare-warp"` |
+| Port 40000 not listening (WARP) | Check mode: `ssh {nickname} "warp-cli mode"` — must be `Proxy`. Re-run: `warp-cli --accept-tos mode proxy && warp-cli --accept-tos connect` |
+| `warp=off` in trace (WARP) | WARP connected but not routing. Set mode again: `warp-cli --accept-tos mode proxy` and reconnect |
+| Google still shows datacenter IP (WARP) | Verify routing rule in panel: inbound=`inbound-443`, outbound=`warp-cli`, domains include Google/YouTube. Restart Xray: `sudo x-ui restart` |
 
 ## License
 
