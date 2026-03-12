@@ -48,6 +48,7 @@ Built for beginners who want a secure, censorship-resistant connection without l
 - 🖥️ **Remote or local mode** — works over SSH from your machine or directly on the server
 - ✅ **Checkpoint-driven workflow** — every critical step is verified before moving on
 - 👻 **ICMP disabled** — server does not respond to ping for stealth
+- 🚪 **Intelligent firewall management** — only necessary ports open (443 for VPN, custom SSH port, panel port if domain configured)
 
 ## Protocol Options
 
@@ -180,22 +181,91 @@ The skill activates automatically when Claude detects a relevant request.
 
 Path C (XHTTP) also works with Nekobox, v2rayN — latest versions required.
 
+## Firewall & Port Management
+
+The skill implements **minimal firewall exposure** — only necessary ports are open:
+
+| Port | Status | Purpose | When Used |
+|------|--------|---------|-----------|
+| 22 | Varies | SSH | Closed if custom port configured (Step 22); closed by default for security |
+| 443 | ✅ Always open | VLESS VPN (all paths) | Required for all protocol paths (A, B, C) |
+| 80 | ❌ Closed (auto-open) | ACME certificate renewal | Opens automatically via cron daily at 03:00 for 5 minutes, then closes (Step 14c only) |
+| {panel_port} | Varies | 3x-ui admin panel | Closed by default; opens only if domain configured (Step 14c); protected by SSL + credentials |
+| 40000 | Localhost only | WARP SOCKS5 | **NOT exposed to internet** — runs only on 127.0.0.1 (optional Step 21a) |
+| {ssh_port} | ✅ Open (custom SSH) | SSH access | Created if you move SSH from port 22 (Step 22) |
+
+### Key security points:
+
+- **Port 80** is normally CLOSED. Opens automatically only during daily cert renewal (03:00) via `/root/cert-renew.sh` cron, then closes.
+- **Port 40000** (WARP) is **never exposed to the internet** — only bound to localhost (127.0.0.1). If you see it bound to 0.0.0.0:40000, something is misconfigured.
+- **Panel port** is protected by SSL certificate (if domain configured) and requires login with credentials. Enable 2FA for extra security.
+- **Fail2ban** protects SSH from brute-force after setup completes (installed in Step 22).
+
+### Verify ports after setup:
+
+```bash
+# Check UFW firewall rules
+ssh {nickname} "sudo ufw status numbered"
+
+# Check what ports are actually listening
+ssh {nickname} "sudo ss -tlnp | grep -E ':443|:80|:40000|:{panel_port}'"
+
+# Verify port 80 is NOT permanently open
+ssh {nickname} "sudo ufw status | grep 80"  # Should show nothing or "deny"
+
+# Verify WARP only on localhost (if installed)
+ssh {nickname} "sudo ss -tlnp | grep 40000"  # Should show 127.0.0.1:40000
+```
+
 ## Troubleshooting
+
+### SSH & Connection Issues
 
 | Problem | Solution |
 |---------|----------|
 | `Permission denied (publickey)` | Check SSH key permissions: `chmod 700 ~/.ssh && chmod 600 ~/.ssh/*` |
 | `Host key verification failed` | Remove old key: `ssh-keygen -R <server-ip>` |
-| Panel not accessible (Path A/C) | Use SSH tunnel: `ssh -L {port}:127.0.0.1:{port} {nickname}` |
-| Panel not accessible (Path B) | Check UFW: `sudo ufw status` — panel port must be open |
-| Reality not connecting | Re-run the SNI scanner to find a working target |
-| Certificate not renewed | Run manually: `sudo /root/cert-renew.sh`, check `/var/log/cert-renew.log` |
-| Forgot panel password | Reset on server: `sudo x-ui setting -reset` |
-| XHTTP client error | Update Hiddify/Nekobox/v2rayN to latest version |
-| `warp-cli` not found (WARP) | Run: `ssh {nickname} "sudo apt update && sudo apt install -y cloudflare-warp"` |
-| Port 40000 not listening (WARP) | Check mode: `ssh {nickname} "warp-cli mode"` — must be `Proxy`. Re-run: `warp-cli --accept-tos mode proxy && warp-cli --accept-tos connect` |
-| `warp=off` in trace (WARP) | WARP connected but not routing. Set mode again: `warp-cli --accept-tos mode proxy` and reconnect |
-| Google still shows datacenter IP (WARP) | Verify routing rule in panel: inbound=`inbound-443`, outbound=`warp-cli`, domains include Google/YouTube. Restart Xray: `sudo x-ui restart` |
+| SSH timeout or refuses connection | If using custom SSH port (Step 22): `ssh -p {custom_port} {username}@{server-ip}` |
+
+### Panel Access Issues
+
+| Problem | Solution |
+|---------|----------|
+| Panel not accessible (Path A/C, no domain) | Use SSH tunnel: `ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}` → then open `https://127.0.0.1:{panel_port}/{web_base_path}` |
+| Panel not accessible (with domain) | Check: 1) Domain points to server IP (`nslookup {domain}`), 2) UFW allows port ({panel_port}): `sudo ufw status`, 3) Certificate exists: `sudo ls /root/cert/{domain}/`, 4) Xray running: `sudo x-ui status` |
+| Forgot panel password | Reset: `ssh {nickname} "sudo x-ui setting -reset"` |
+
+### VPN Connection Issues
+
+| Problem | Solution |
+|---------|----------|
+| Reality not connecting | Re-run the SNI scanner to find a working target; verify domain is NOT your own domain as SNI |
+| XHTTP client error | Update Hiddify/Nekobox/v2rayN to latest version (XHTTP requires recent clients) |
+| No internet after VPN connects | Check panel logs: `ssh {nickname} "sudo x-ui log"` — look for TLS errors or binding issues |
+
+### Certificate Issues
+
+| Problem | Solution |
+|---------|----------|
+| Certificate not renewed | Check cron: `ssh {nickname} "sudo crontab -l \| grep cert"` — should show `0 3 * * * /root/cert-renew.sh`. Run manually: `ssh {nickname} "sudo /root/cert-renew.sh"` and check `/var/log/cert-renew.log` |
+| Port 80 not closing after renewal | Check script output: `ssh {nickname} "tail /var/log/cert-renew.log"`. If stuck, manually close: `ssh {nickname} "sudo ufw deny 80/tcp"` |
+
+### Firewall & Port Issues
+
+| Problem | Solution |
+|---------|----------|
+| **Port 80 permanently open (CRITICAL)** | This should NOT happen. Port 80 must be closed except during cert renewal. Check: `sudo ufw status \| grep 80` (should show nothing or "deny"). If open, close it: `sudo ufw deny 80/tcp` |
+| **Port 40000 exposed to internet (CRITICAL)** | WARP SOCKS5 should ONLY listen on localhost. Check: `sudo ss -tlnp \| grep 40000`. If shows `0.0.0.0:40000` or non-127.0.0.1 address, WARP is misconfigured. Reinstall: `sudo apt remove cloudflare-warp && sudo apt install cloudflare-warp` |
+| UFW shows unexpected open ports | Run: `sudo ufw status numbered` and compare with expected list (SSH, 443, and {panel_port} if domain) |
+
+### WARP Specific Issues
+
+| Problem | Solution |
+|---------|----------|
+| `warp-cli` not found | Install: `ssh {nickname} "sudo apt update && sudo apt install -y cloudflare-warp"` |
+| Port 40000 not listening | Check mode: `ssh {nickname} "warp-cli mode"` — must be `Proxy`. Reconfigure: `ssh {nickname} "warp-cli --accept-tos mode proxy && warp-cli --accept-tos connect"` |
+| `warp=off` in trace | WARP connected but not routing traffic. Set mode again: `warp-cli --accept-tos mode proxy` and reconnect in panel |
+| Google still shows datacenter IP | Verify routing rule in panel: inbound=`inbound-443`, outbound=`warp-cli`, domains include `geosite:google`, `geosite:youtube`. Restart: `sudo x-ui restart` |
 
 ## License
 

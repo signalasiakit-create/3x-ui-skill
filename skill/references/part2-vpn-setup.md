@@ -210,6 +210,67 @@ ping -c 2 -W 2 {SERVER_IP}
 
 Expected: no response (timeout).
 
+## Step 15a: Firewall & Port Management Overview
+
+**IMPORTANT:** Before choosing a VPN protocol, understand what ports are open and which are required for each path.
+
+### Current firewall state:
+
+After Step 8 and Step 15:
+- **Port 22 (SSH):** Open (will be moved to {ssh_port} if you choose custom SSH port in Step 22)
+- **Port 443 (VPN):** Open (required for all VPN paths)
+- **Port 80 (ACME):** Closed (opens only automatically during cert renewal at 03:00 if domain is configured)
+- **{panel_port} (Panel):** Closed by default (opens only if you configure domain for panel in Step 14c)
+- **Port 40000 (WARP):** Localhost only, NOT open to internet (SOCKS5 proxy on 127.0.0.1)
+
+### Port requirements by path:
+
+| | Path A (Reality) | Path B (TLS+Domain) | Path C (XHTTP) |
+|---|---|---|---|
+| **VPN port 443** | ✅ Required | ✅ Required | ✅ Required |
+| **Panel port {panel_port}** | ❌ Default (SSH tunnel only) | ⚠️ Optional (domain opens it) | ❌ Default (SSH tunnel only) |
+| **Port 80 (ACME)** | ❌ Not needed | ⚠️ Automatic via cron (03:00) | ❌ Not needed |
+| **Custom SSH port** | ✅ Optional (for all paths) | ✅ Optional (for all paths) | ✅ Optional (for all paths) |
+| **WARP port 40000** | ✅ Optional (localhost only) | ✅ Optional (localhost only) | ✅ Optional (localhost only) |
+
+### Domain configuration affects panel access:
+
+- **No domain:** Panel accessible ONLY via SSH tunnel (secure but requires active SSH session)
+  ```bash
+  ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
+  ```
+
+- **With domain (any path):** Panel accessible directly via HTTPS with domain
+  ```
+  https://{domain}:{panel_port}/{web_base_path}
+  ```
+  - Step 14c configures this (SSL cert, UFW opens {panel_port})
+  - Panel is then exposed to internet — use strong credentials and enable 2FA
+
+### Verify firewall before proceeding:
+
+```bash
+ssh {nickname} "sudo ufw status"
+```
+
+**Expected output:**
+```
+Status: active
+
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW       Anywhere
+443/tcp                    ALLOW       Anywhere
+22/tcp (v6)                ALLOW       Anywhere (v6)
+443/tcp (v6)               ALLOW       Anywhere (v6)
+```
+
+If port 80 or {panel_port} are shown — double-check:
+- Port 80 should NOT be permanently open (only via cert-renew.sh during renewal)
+- {panel_port} should only be open if Step 14c was executed
+
+**Once firewall is confirmed correct**, proceed to Step 16.
+
 ## Step 16: Branch -- Choose Protocol
 
 Ask the user which setup they want:
