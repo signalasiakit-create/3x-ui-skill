@@ -172,7 +172,54 @@ ssh {nickname} "sudo x-ui setting -reset" # сбросить пароль пан
 | Забыл пароль панели | `ssh {nickname} "sudo x-ui setting -reset"` |
 | Сертификат не обновился | `ssh {nickname} "sudo /root/cert-renew.sh"` и проверь `/var/log/cert-renew.log` |
 
-## 8. Инструкции для Claude Code
+## 8. WARP Outbound (Опционально)
+
+**Статус:** {warp_enabled}
+
+Если WARP включен, трафик Google/YouTube маршрутизируется через Cloudflare для обхода геоблокировок.
+
+| Параметр | Значение |
+|----------|----------|
+| Статус | {warp_enabled} |
+| Адрес прокси | `127.0.0.1` |
+| Порт прокси | `40000` |
+| Домены через WARP | `Google, YouTube, Gemini, NotebookLM` |
+| Остальной трафик | Напрямую через VPN (полная скорость) |
+
+### Проверка WARP
+
+```bash
+ssh {nickname} "warp-cli --accept-tos status"
+# Должно быть: Connected
+
+ssh {nickname} "ss -tlnp | grep 40000"
+# Должно быть: LISTEN 127.0.0.1:40000
+```
+
+### Если WARP включен — тест
+
+Подключись через VPN и открой: https://www.cloudflare.com/cdn-cgi/trace
+
+Ожидается:
+- `warp=on` — WARP активен
+- `ip=104.x.x.x` — IP Cloudflare (не твоего сервера)
+
+### Отключение WARP
+
+Если WARP работает медленно или не нужен:
+
+```bash
+ssh {nickname} "warp-cli --accept-tos disconnect"
+```
+
+Затем в панели удали:
+1. **Outbound** с tag `warp-cli`
+2. **Routing Rule** для Google/YouTube доменов
+3. Перезапусти: `ssh {nickname} "sudo x-ui restart"`
+
+---
+
+## 9. Инструкции для Claude Code
 
 Этот раздел для автоматической настройки через Claude Code на твоём ноутбуке.
 Скопируй всё ниже и вставь в Claude Code на ноутбуке.
@@ -303,6 +350,13 @@ VPN-подключение:
 Добавить нового клиента:
    Открой админку -> Inbounds -> ... -> Add Client
    Скинь ссылку или QR-код другому человеку
+
+WARP Outbound (опционально):
+   {warp_enabled}
+   [Если включен] Адрес: 127.0.0.1:40000
+   Домены через WARP: Google, YouTube, Gemini, NotebookLM
+   Проверка: ssh {nickname} "warp-cli --accept-tos status"
+   [Если отключить] ssh {nickname} "warp-cli --accept-tos disconnect"
 
 Методичка: ~/vpn-{nickname}-guide.md
    Все пароли, инструкции и команды в одном файле

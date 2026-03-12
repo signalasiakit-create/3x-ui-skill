@@ -1,8 +1,56 @@
 # WARP Outbound Setup (via warp-cli proxy)
 
-Route Google/YouTube traffic through Cloudflare WARP to hide datacenter IP and fix geo-detection.
+Маршрутизируй трафик Google/YouTube через Cloudflare WARP чтобы скрыть IP дата-центра и обойти геоблокировки.
 
-**When to use:** After basic VPN is working (Step 21 complete). Optional enhancement.
+## Что такое WARP?
+
+**WARP** — это бесплатный прокси от Cloudflare. Когда ты подключаешься через WARP:
+- Твой IP становится IP Cloudflare (104.x.x.x)
+- Google видит что ты в США (или где там Cloudflare)
+- Исчезают капчи, геоблокировки YouTube, ограничения Google Gemini
+
+**Как это работает:**
+1. На сервере устанавливается `warp-cli` в режиме прокси (SOCKS5 на `localhost:40000`)
+2. В Xray добавляется outbound с тегом `warp-cli` — это просто ссылка на локальный SOCKS5
+3. Добавляется routing rule: "трафик для Google/YouTube → через warp-cli"
+4. Результат: только Google/YouTube идут через WARP, остальное через VPN напрямую (полная скорость)
+
+**Когда НЕ нужна WARP:**
+- Хочешь скрыть весь трафик → ненужна (ты же в VPN, это и так скрывает)
+- Нужна максимальная скорость → WARP добавит ~20-30ms задержки
+- Работаешь с IP-критичными сервисами → лучше без прокси
+
+---
+
+## Предусловия
+
+Перед началом убедись что:
+
+✅ **VPN работает** — ты можешь подключиться через Hiddify и видеть IP сервера в интернете
+✅ **Step 21 завершён** — базовая настройка VPN готова
+✅ **Сервер доступен** — `ssh {nickname}` работает без ошибок
+✅ **Панель доступна** — ты можешь открыть админку (через SSH-туннель или домен)
+
+**Если что-то из этого не готово** → сначала заверши Step 21, потом возвращайся сюда.
+
+---
+
+## Решение: нужна ли WARP?
+
+Ответь на вопросы:
+
+| Вопрос | Ответ | Что делать |
+|--------|--------|-----------|
+| Хочу открывать Google/YouTube в VPN без капчи? | **Да** → WARP нужна ✅ | Продолжай |
+| Хочу использовать Google Gemini/NotebookLM? | **Да** → WARP нужна ✅ | Продолжай |
+| Мне важна максимальная скорость? | **Да** → WARP замедлит ❌ | Пропусти |
+| Я в России и мне работает и без WARP? | **Да** → ненужна ❌ | Пропусти |
+
+---
+
+## Установка и настройка
+
+**Use when:** After basic VPN is working (Step 21 complete). Optional enhancement.
 
 **What this gives:**
 - Google/YouTube see Cloudflare IP instead of Hetzner/Vultr/etc.
@@ -157,6 +205,40 @@ Verify it will start on boot:
 
 ```bash
 ssh {nickname} "sudo systemctl status warp-taskd"
+```
+
+---
+
+## Quick Reference Card
+
+```
+WARP Quick Setup:
+1. Install & register:
+   curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+   echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+   sudo apt update && sudo apt install cloudflare-warp
+   warp-cli --accept-tos registration new
+   warp-cli --accept-tos mode proxy
+   warp-cli --accept-tos connect
+
+2. Check:
+   warp-cli --accept-tos status                    → должно быть Connected
+   ss -tlnp | grep 40000                           → должно быть LISTEN 127.0.0.1:40000
+   curl -sx socks5://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | grep warp  → должно быть warp=on
+
+3. Panel (UI):
+   Add Outbound: protocol=socks, tag=warp-cli, address=127.0.0.1, port=40000
+   Add Rule: inbound=inbound-443, outbound=warp-cli, domains=[geosite:google*, geosite:youtube*]
+   Restart: sudo x-ui restart
+
+4. Test:
+   From VPN: open https://www.cloudflare.com/cdn-cgi/trace  → warp=on, IP=104.x.x.x
+   Google: should work without CAPTCHA
+
+5. Disable:
+   warp-cli --accept-tos disconnect
+   Remove outbound + rule from panel
+   Restart: sudo x-ui restart
 ```
 
 ---
