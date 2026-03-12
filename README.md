@@ -68,17 +68,17 @@ Built for beginners who want a secure, censorship-resistant connection without l
 
 ## What's New in This Fork
 
-### Panel via Domain (all VPN paths)
-If a domain is configured, the 3x-ui panel is accessible directly via domain — regardless of which VPN protocol (Path A, B, or C) you use. SSL cert, UFW access, and cert renewal are set up in a dedicated step before the protocol choice:
-```
-https://yourdomain.com:{panel_port}/{web_base_path}
-```
+### Panel via Domain (optional for Path A/C, mandatory for Path B)
+- **Path B (TLS):** Domain is REQUIRED for VPN protocol. Panel accessible via domain: `https://yourdomain.com:{panel_port}/{web_base_path}`
+- **Path A (Reality) / Path C (XHTTP):** Domain is OPTIONAL. If domain is provided, panel is accessible directly via domain instead of SSH tunnel.
 
-### Certificate Auto-Renewal
+SSL cert, UFW access, and cert renewal are set up in a dedicated step AFTER protocol selection.
+
+### Certificate Auto-Renewal (only if domain configured)
 Port 80 is closed by default. A `/root/cert-renew.sh` script handles the firewall automatically. Runs daily at **03:00** via cron. Log: `/var/log/cert-renew.log`.
 
-### SSH on Custom Port
-Port 22 is replaced with a user-chosen port. UFW opens the new port first, then closes 22 — no lockout risk.
+### SSH on Custom Port (optional for all paths)
+Optional: Move SSH from port 22 to a user-chosen port for extra security. UFW opens the new port first, then closes 22 — no lockout risk. Works independently of VPN protocol or domain choice.
 
 ### NebulaDrive Stub Site
 Nginx serves a realistic dark-themed cloud storage page. Regular browser visitors see a legitimate site, not a connection error. Built with JetBrains Mono + Russo One fonts, animated gradients.
