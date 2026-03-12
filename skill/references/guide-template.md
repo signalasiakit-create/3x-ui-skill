@@ -21,7 +21,7 @@ Generate this file using the **Write tool**, substituting all `{variables}` with
 | Пользователь | `{username}` |
 | Пароль sudo | `{sudo_password}` |
 | SSH-ключ | `~/.ssh/{nickname}_key` |
-| SSH-порт | `{ssh_port}` (если TLS путь, иначе 22) |
+| SSH-порт | `{ssh_port}` ({ssh_port_custom}: yes/no) |
 | Быстрое подключение | `ssh {nickname}` |
 
 ## 2. Панель 3x-ui
@@ -31,13 +31,18 @@ Generate this file using the **Write tool**, substituting all `{variables}` with
 | Логин | `{panel_username}` |
 | Пароль | `{panel_password}` |
 
-**Reality путь (без домена)** — доступ через SSH-туннель:
+**Path A (Reality) / Path C (XHTTP) — без домена панели** — доступ через SSH-туннель:
 ```
 ssh -L {panel_port}:127.0.0.1:{panel_port} {nickname}
 ```
 Затем открой: `https://127.0.0.1:{panel_port}/{web_base_path}`
 
-**TLS путь (с доменом)** — прямой доступ:
+**Path A (Reality) / Path C (XHTTP) — с доменом панели** (если выбрано {panel_via_domain}) — прямой доступ:
+```
+https://{domain}:{panel_port}/{web_base_path}
+```
+
+**Path B (TLS) — с доменом** — прямой доступ:
 ```
 https://{domain}:{panel_port}/{web_base_path}
 ```
@@ -156,8 +161,9 @@ ssh {nickname} "sudo x-ui setting -reset" # сбросить пароль пан
 | Усиление ядра | Включено (sysctl) |
 | BBR | Включён |
 | ICMP (ping) | Отключён |
-| SSH порт | {ssh_port} (если TLS путь, порт 22 закрыт) |
-| Обновление сертификата | Cron 0 3 * * * /root/cert-renew.sh (если TLS путь) |
+| Порт 80 | Закрыт (открывается только автоматически для обновления сертификата в 03:00) |
+| SSH порт | {ssh_port} ({ssh_port_custom}: yes/no — если yes, порт 22 закрыт) |
+| Обновление сертификата | Cron 0 3 * * * /root/cert-renew.sh ({panel_via_domain}: yes/no — если yes) |
 
 ## 7. Решение проблем
 

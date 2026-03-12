@@ -69,9 +69,20 @@ ssh {nickname} "sysctl net.ipv4.tcp_congestion_control net.core.default_qdisc"
 
 Expected: `net.ipv4.tcp_congestion_control = bbr`, `net.core.default_qdisc = fq`.
 
-## Step 14c: Configure Panel Domain Access (if domain)
+## Step 14c: Configure Panel Domain Access
 
-**Only if user has a domain.** This step sets up direct HTTPS panel access via domain — independent of which VPN protocol (Path A, B, or C) you choose later.
+**When to execute:**
+- **Path B (TLS):** MANDATORY if domain is available — domain is required for VPN protocol (VLESS TLS inbound on 443)
+- **Path A (Reality) or Path C (XHTTP):** OPTIONAL — ask user "Do you want to use domain for panel access?"
+  - YES → execute this step (panel access via domain, Xray NOT on 443)
+  - NO → skip this step (panel accessible only via SSH tunnel)
+
+**About NebulaDrive stub site:**
+- **Path B:** NebulaDrive is REQUIRED (Xray listens on 443 for VLESS TLS → needs fallback for browser visitors)
+- **Path A/C:** NebulaDrive is NOT needed (Xray does NOT listen on 443 → panel on separate {panel_port})
+  - If domain is used for panel only (Path A/C) → skip Nginx setup, no fallback needed
+
+**Important:** This step is executed AFTER protocol selection (Step 16). The domain can be used for panel access independently of the VPN protocol choice.
 
 ### Verify DNS
 

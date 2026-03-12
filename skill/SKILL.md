@@ -142,7 +142,7 @@ Complete setup: fresh VPS from provider → secured server → working VPN with 
 |------|------|-------|
 | **Step 14** | Install 3x-ui Panel | Save credentials shown in output — ⚠️ critical |
 | **Step 14b** | Enable BBR | TCP throughput optimization |
-| **Step 14c** | Panel Domain Access | **Only if user has domain** — SSL cert + UFW + panel URL |
+| **Step 14c** | Panel Domain Access | **Mandatory for Path B, Optional for Path A/C** — SSL cert + UFW + panel URL |
 | **Step 15** | Disable ICMP | Server becomes invisible to ping |
 | **Step 16** | Choose Protocol | Path A (Reality) / Path B (TLS) / Path C (XHTTP) |
 | **Step 17A** | Reality Scanner | Run for Path A and C — find best SNI from /24 subnet |
@@ -169,9 +169,11 @@ Complete setup: fresh VPS from provider → secured server → working VPN with 
 
 ### Remote Mode
 
-**22R-0: Move SSH to Custom Port (if domain configured in Step 14c)**
+**22R-0: Move SSH to Custom Port (Optional)**
 
-**Only if the user has a domain.** Skip this sub-step if no domain.
+**Ask the user:** "Do you want to move SSH to a custom port for extra security?"
+- **YES** → Move to user-chosen port (procedure below)
+- **NO** → Keep SSH on port 22, skip to Step 22R-1
 
 **IMPORTANT:** UFW opens the new port BEFORE changing sshd_config — no lockout risk.
 
