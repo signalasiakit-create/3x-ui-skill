@@ -62,6 +62,16 @@ https://{domain}:{panel_port}/{web_base_path}
 | Домен | `{domain}` |
 | Клиент | Hiddify |
 
+**XHTTP+Reality путь:**
+
+| Параметр | Значение |
+|----------|----------|
+| Протокол | VLESS XHTTP+Reality |
+| Порт | 443 |
+| SNI | `{best_sni}` |
+| Path | `/{xhttp_path}` |
+| Клиент | Hiddify |
+
 Ссылка VLESS:
 ```
 {VLESS_LINK}

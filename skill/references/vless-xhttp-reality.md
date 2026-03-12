@@ -28,6 +28,28 @@ If scanner hasn't been run yet, run it first:
 ssh {nickname} 'ARCH=$(dpkg --print-architecture); case "$ARCH" in amd64) SA="64";; arm64|aarch64) SA="arm64-v8a";; *) SA="$ARCH";; esac && curl -sL "https://github.com/XTLS/RealiTLScanner/releases/latest/download/RealiTLScanner-linux-${SA}" -o /tmp/scanner && chmod +x /tmp/scanner; MY_IP=$(curl -4 -s ifconfig.me); SUBNET=$(echo $MY_IP | sed "s/\.[0-9]*$/.0\/24/"); echo "Scanning: $SUBNET"; timeout 120 /tmp/scanner --addr "$SUBNET" 2>&1 | head -80'
 ```
 
+## Step 0: Choose XHTTP Path
+
+**XHTTP path** is a URL segment that clients use when connecting. Examples: `/updates`, `/api/v1`, `/cdn`, or a random string like `/a3f7b1`.
+
+**Decision:** Ask the user:
+
+> Do you want a **random XHTTP path** (harder to guess, recommended) or a **custom path**?
+>
+> - **Random (recommended):** I'll generate a random path like `/a3f7b1`
+> - **Custom:** You specify what the path should be (e.g., `/cdn`, `/updates`)
+
+**If random → proceed to Step 1** (path will be generated in Step 2)
+
+**If custom → ask for the path:**
+> What should the custom path be? Examples: `/updates`, `/cdn`, `/api/v1`
+>
+> (Don't include the leading slash — I'll add it automatically)
+
+**Save the chosen path as `{xhttp_path}`** — this will go into the final guide.
+
+---
+
 ## Step 1: Verify Port 443 Is Free
 
 ```bash

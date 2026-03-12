@@ -150,14 +150,44 @@ sudo whoami
 # Must output: root
 ```
 
-**If this fails** -- debug permissions, do NOT disable root login:
+**If this fails** -- DO NOT disable root login. Run debugging commands on server (while still connected as root in the first terminal):
+
+### Debug: Check SSH directory permissions
 ```bash
 # Check on server as root:
 ls -la /home/{username}/.ssh/
 cat /home/{username}/.ssh/authorized_keys
-# Fix ownership:
-chown -R {username}:{username} /home/{username}/.ssh
 ```
+
+**Expected output:**
+- Directory mode: `700` (drwx------)
+- File mode: `600` (-rw-------)
+- File owner: `{username}:{username}` (not root)
+- Content: your public key from `~/.ssh/{nickname}_key.pub`
+
+### Debug: Fix if permissions are wrong
+```bash
+# Fix ownership (if showing root:root):
+chown -R {username}:{username} /home/{username}/.ssh
+chmod 700 /home/{username}/.ssh
+chmod 600 /home/{username}/.ssh/authorized_keys
+
+# Verify fix:
+ls -la /home/{username}/.ssh/
+```
+
+### Debug: Retry SSH test
+After running fixes, try SSH login again:
+```bash
+ssh -i ~/.ssh/{nickname}_key {username}@{SERVER_IP}
+```
+
+**If SSH still fails:**
+- Check root session: can you still `ssh root@{SERVER_IP}` in the first terminal?
+- Is SSH service running: `ssh {username}@{SERVER_IP} "sudo systemctl status ssh"`?
+- Ask Claude Code: "SSH test failed on Step 6. Connection error: [paste exact error message]"
+
+**Only if SSH test passes** → proceed to Step 7
 
 ## Step 7: Lock Down SSH — DEFERRED
 
